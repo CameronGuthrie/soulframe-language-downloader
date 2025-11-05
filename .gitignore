@@ -1,0 +1,36 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo lock file (optional - include if building library, exclude if building binary)
+# Cargo.lock
+
+# Downloaded game data
+/downloaded-data/
+/extracted-data/
+
+# Native libraries (too large for git, user must provide)
+/lib/*.dll
+/lib/*.so
+/lib/*.dylib
+
+# Test directories
+/exe test/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Temporary test files
+test_*.rs
+test_*.exe

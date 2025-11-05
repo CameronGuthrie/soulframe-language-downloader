@@ -1,0 +1,11 @@
+[build]
+# Uncomment and adjust if you have libraries in a custom location
+# rustflags = ["-L", "/path/to/your/libs"]
+
+[target.'cfg(windows)']
+# Windows-specific configuration
+rustflags = []
+
+[target.'cfg(unix)']
+# Unix-specific configuration  
+rustflags = []
