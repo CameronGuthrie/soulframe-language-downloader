@@ -3,12 +3,63 @@ use base64::prelude::*;
 use libloading::{Library, Symbol};
 use std::ffi::{c_char, c_int, c_void};
 use std::path::PathBuf;
+use std::{collections::HashSet, env};
 
 // This library provides core functionality that can be used by the binaries
 // For now, we'll keep it minimal to avoid import issues
 
-pub const TYPE_MANIFEST: u8 = 0xD;
+// Manifest type IDs changed with Soulframe 40.0.0 (Pluto tool uses 0xE for 40+).
+pub const TYPE_MANIFEST: u8 = 0xE;
 pub const TYPE_BIN: u8 = 0x2C;
+
+pub fn find_runtime_lib(lib_filename: &str) -> Result<PathBuf> {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    if let Ok(dir) = env::var("SOULFRAME_LIB_DIR") {
+        let base = PathBuf::from(dir);
+        candidates.push(base.join(lib_filename));
+    }
+
+    if let Ok(exe) = env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            candidates.push(exe_dir.join("lib").join(lib_filename));
+            candidates.push(exe_dir.join(lib_filename));
+
+            for ancestor in exe_dir.ancestors().take(8) {
+                candidates.push(ancestor.join("lib").join(lib_filename));
+            }
+        }
+    }
+
+    if let Ok(cwd) = env::current_dir() {
+        candidates.push(cwd.join("lib").join(lib_filename));
+        candidates.push(cwd.join(lib_filename));
+
+        for ancestor in cwd.ancestors().take(8) {
+            candidates.push(ancestor.join("lib").join(lib_filename));
+        }
+    }
+
+    let mut seen = HashSet::new();
+    candidates.retain(|p| seen.insert(p.to_path_buf()));
+
+    for candidate in &candidates {
+        if candidate.exists() {
+            return Ok(candidate.to_path_buf());
+        }
+    }
+
+    let attempted = candidates
+        .into_iter()
+        .map(|p| format!("  - {}", p.display()))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    Err(anyhow!(
+        "Missing required runtime library {lib_filename}. Tried:\n{attempted}\n\
+Set SOULFRAME_LIB_DIR to a folder containing the DLL/SO, or place it in ./lib/ next to the executable."
+    ))
+}
 
 pub fn get_download_path(path: &str, suffix: Option<&str>) -> PathBuf {
     let suffix = suffix.unwrap_or("");
@@ -43,19 +94,13 @@ pub struct Oodle {
 
 impl Oodle {
     pub fn new() -> Result<Self> {
-        // Get the directory where the executable is located
-        let exe_dir = std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-            .unwrap_or_else(|| std::env::current_dir().unwrap());
-        
         let lib_name = if cfg!(windows) {
             "oo2core_9.dll"
         } else {
             "oo2core_9.so"
         };
-        
-        let lib_path = exe_dir.join("lib").join(lib_name);
+
+        let lib_path = find_runtime_lib(lib_name)?;
         
         unsafe {
             let lib = Library::new(&lib_path)

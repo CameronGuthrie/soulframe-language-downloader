@@ -1,6 +1,7 @@
 use clap::Parser;
 use anyhow::{anyhow, Result};
 use rand::Rng;
+use soulframe_language_downloader::{find_runtime_lib, TYPE_BIN, TYPE_MANIFEST};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -15,9 +16,6 @@ struct Args {
     #[arg(short, long, default_value = "en,fr,de,es,it,pt,ru,pl,tr,ja,ko,zh")]
     locales: String,
 }
-
-const TYPE_MANIFEST: u8 = 0xD;
-const TYPE_BIN: u8 = 0x2C;
 
 fn get_download_path(path: &str, suffix: Option<&str>) -> PathBuf {
     let suffix = suffix.unwrap_or("");
@@ -42,19 +40,13 @@ struct Oodle {
 
 impl Oodle {
     fn new() -> Result<Self> {
-        // Get the directory where the executable is located
-        let exe_dir = std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-            .unwrap_or_else(|| std::env::current_dir().unwrap());
-        
         let lib_name = if cfg!(windows) {
             "oo2core_9.dll"
         } else {
             "oo2core_9.so"
         };
-        
-        let lib_path = exe_dir.join("lib").join(lib_name);
+
+        let lib_path = find_runtime_lib(lib_name)?;
         
         unsafe {
             let lib = Library::new(&lib_path)
@@ -352,24 +344,13 @@ fn download_soulframe_file(
     
     let mut urls = Vec::new();
     
-    if normalized_path == "/H.Cache.bin" {
-        let random_id: u32 = rand::thread_rng().gen();
-        urls.push(format!(
-            "https://origin.soulframe.com/origin/{:08X}/0/H.Cache.bin!D_---------------------w",
-            random_id
-        ));
-        urls.push("https://origin.soulframe.com/0/H.Cache.bin!D_---------------------w".to_string());
-    } else {
-        urls.push(format!("https://content.soulframe.com{}", req_path));
-        urls.push(format!("https://origin.soulframe.com{}", req_path));
-        
-        let random_id: u32 = rand::thread_rng().gen();
-        urls.push(format!(
-            "https://origin.soulframe.com/origin/{:08X}{}",
-            random_id, req_path
-        ));
-        urls.push(format!("https://origin.soulframe.com/origin/0{}", req_path));
-    }
+    // Prefer the CDN, but include origin endpoints and a cache-busting origin URL as fallbacks.
+    urls.push(format!("https://content.soulframe.com{}", req_path));
+    urls.push(format!("https://origin.soulframe.com{}", req_path));
+
+    let random_id: u32 = rand::thread_rng().gen();
+    urls.push(format!("https://origin.soulframe.com/origin/{:08X}{}", random_id, req_path));
+    urls.push(format!("https://origin.soulframe.com/origin/0{}", req_path));
     
     for url in urls {
         println!("Attempting download from {}", url);

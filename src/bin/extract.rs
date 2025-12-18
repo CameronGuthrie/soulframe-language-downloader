@@ -1,6 +1,7 @@
 use clap::Parser;
 use anyhow::{anyhow, Result};
 use libloading::{Library, Symbol};
+use soulframe_language_downloader::find_runtime_lib;
 use std::collections::BTreeMap;
 use std::ffi::c_void;
 use std::fs;
@@ -81,14 +82,8 @@ struct Zstd {
 
 impl Zstd {
     fn new() -> Result<Self> {
-        // Get the directory where the executable is located
-        let exe_dir = std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-            .unwrap_or_else(|| std::env::current_dir().unwrap());
-        
         let lib_name = if cfg!(windows) { "libzstd.dll" } else { "libzstd.so" };
-        let lib_path = exe_dir.join("lib").join(lib_name);
+        let lib_path = find_runtime_lib(lib_name)?;
         
         unsafe {
             let lib = Library::new(&lib_path)

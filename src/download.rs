@@ -35,24 +35,13 @@ impl DownloadClient {
         
         let mut urls = Vec::new();
         
-        if normalized_path == "/H.Cache.bin" {
-            let random_id: u32 = rand::thread_rng().gen();
-            urls.push(format!(
-                "https://origin.soulframe.com/origin/{:08X}/0/H.Cache.bin!D_---------------------w",
-                random_id
-            ));
-            urls.push("https://origin.soulframe.com/0/H.Cache.bin!D_---------------------w".to_string());
-        } else {
-            urls.push(format!("https://content.soulframe.com{}", req_path));
-            urls.push(format!("https://origin.soulframe.com{}", req_path));
-            
-            let random_id: u32 = rand::thread_rng().gen();
-            urls.push(format!(
-                "https://origin.soulframe.com/origin/{:08X}{}",
-                random_id, req_path
-            ));
-            urls.push(format!("https://origin.soulframe.com/origin/0{}", req_path));
-        }
+        // Prefer the CDN, but include origin endpoints and a cache-busting origin URL as fallbacks.
+        urls.push(format!("https://content.soulframe.com{}", req_path));
+        urls.push(format!("https://origin.soulframe.com{}", req_path));
+
+        let random_id: u32 = rand::thread_rng().gen();
+        urls.push(format!("https://origin.soulframe.com/origin/{:08X}{}", random_id, req_path));
+        urls.push(format!("https://origin.soulframe.com/origin/0{}", req_path));
         
         for url in urls {
             println!("Attempting download from {}", url);
